@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">SetGame</string>
+    <string name="tile_vertex_shader">
+        precision highp float;
+        attribute vec4 aPosition;
+        uniform mat4 uModelView;
+        uniform mat4 uProjection;
+        uniform vec3 uOrbit;
+        varying vec2 vCoord;
+        void main() {
+            vCoord = (aPosition.xy/aPosition.w + vec2(1.,1.))/2.;
+            gl_Position = uProjection*uModelView*(aPosition + vec4(1.,1.,0,0));
+        }
+    </string>
+    <string name="tile_fragment_shader">
+        precision highp float;
+        uniform vec4 uColor;
+        uniform float uTime;
+        uniform vec2 uCard;
+        varying vec2 vCoord;
+        uniform vec2 uTap;
+        uniform sampler2D texture;
+        void main() {
+            gl_FragColor = mat4(uColor, (1.-uColor)/2., (1.-uColor)/2., vec4(0,0,0,1))*texture2D(texture, (vCoord+uCard)/vec2(9.,3.));
+        }
+    </string>
+</resources>
