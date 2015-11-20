@@ -5,7 +5,6 @@
         attribute vec4 aPosition;
         uniform mat4 uModelView;
         uniform mat4 uProjection;
-        uniform vec3 uOrbit;
         varying vec2 vCoord;
         void main() {
             vCoord = (aPosition.xy/aPosition.w + vec2(1.,1.))/2.;
@@ -23,6 +22,31 @@
         void main() {
             vec4 base_sample = texture2D(texture, (vCoord+uCard)/vec2(9.,3.));
             gl_FragColor = mat4(uColor, vec4(0,0,0,0), (1.-uColor), vec4(0,0,0,1))*base_sample;
+        }
+    </string>
+    <string name="particle_vertex_shader">
+        precision highp float;
+        attribute vec4 aPosition;
+        uniform mat4 uProjection;
+        uniform mat4 uModelView;
+        uniform float uTime;
+        varying float vPhase;
+        void main() {
+            vec4 base_position = vec4(aPosition.xy,0,1);
+            base_position.y += uTime*aPosition.z;
+            base_position.y = fract(base_position.y);
+            vPhase = aPosition.z;
+            gl_Position = uProjection*uModelView*base_position;
+        }
+    </string>
+    <string name="particle_fragment_shader">
+        precision highp float;
+        uniform vec4 uColor;
+        uniform float uTime;
+        varying float vPhase;
+        void main() {
+            float theta = 2.*3.1416*vPhase*uTime;
+            gl_FragColor = vec4(.5*(1.+cos(theta)),.5*(1.+cos(theta+2.*3.1416/3.)),.5*(1.+cos(theta-4.*3.16/3.)),1);
         }
     </string>
 </resources>

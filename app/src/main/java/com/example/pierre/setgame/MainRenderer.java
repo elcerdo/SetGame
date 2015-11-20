@@ -25,6 +25,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 public class MainRenderer extends GestureDetector.SimpleOnGestureListener implements Renderer {
     private FloatBuffer verticesBufferSquare;
+    private FloatBuffer randomPointsBuffer;
 
     private float verticesArraySquare[] = {
       -1,-1,0,1,
@@ -36,6 +37,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
     private long startTime;
 
     private int tile_program;
+    private int particle_program;
     private int textures[];
     private Context context;
 
@@ -53,6 +55,21 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         FloatBuffer float_buffer = byte_buffer.asFloatBuffer();
         float_buffer.put(array);
         float_buffer.position(0);
+        return float_buffer;
+    }
+
+    public static FloatBuffer genRandomPointsBuffer(final int nn) {
+        ByteBuffer byte_buffer = ByteBuffer.allocateDirect(nn * 16);
+        byte_buffer.order(ByteOrder.nativeOrder());
+        FloatBuffer float_buffer = byte_buffer.asFloatBuffer();
+        for (int kk=0; kk<nn; kk++) {
+            float_buffer.put((float)Math.random());
+            float_buffer.put((float)Math.random());
+            float_buffer.put((float)Math.random());
+            float_buffer.put((float)Math.random());
+        }
+        float_buffer.position(0);
+        Log.i("SetGame", "prout " + float_buffer.capacity());
         return float_buffer;
     }
 
@@ -93,6 +110,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         sx = .5f;
         sy = 0;
         verticesBufferSquare = arrayToBuffer(verticesArraySquare);
+        randomPointsBuffer = genRandomPointsBuffer(1000);
         startTime = System.currentTimeMillis();
         context = context_;
 
@@ -139,7 +157,33 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         GLES20.glClearColor((float)(1d+Math.cos(omega*current_time))/2f,(float)(1d+Math.cos(omega*current_time+2*Math.PI/3))/2f,(float)(1d+Math.cos(omega*current_time+4*Math.PI/3))/2f,1f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glLineWidth(10f);
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        GLES20.glEnable(GLES20.GL_CULL_FACE);
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        GLES20.glDisable(GLES20.GL_BLEND);
+
+        {
+            GLES20.glUseProgram(particle_program);
+
+            int position_attrib = GLES20.glGetAttribLocation(particle_program, "aPosition");
+            int model_view_uniform = GLES20.glGetUniformLocation(particle_program, "uModelView");
+            int time_uniform = GLES20.glGetUniformLocation(particle_program, "uTime");
+            int tap_uniform = GLES20.glGetUniformLocation(particle_program, "uTap");
+
+            GLES20.glUniform1f(time_uniform, current_time);
+            GLES20.glUniform2f(tap_uniform, sx, sy);
+
+            float model_view_matrix[] = new float[16];
+            Matrix.setIdentityM(model_view_matrix, 0);
+            Matrix.scaleM(model_view_matrix, 0, width,height,1);
+            GLES20.glUniformMatrix4fv(model_view_uniform, 1, false, model_view_matrix, 0);
+
+
+            GLES20.glEnableVertexAttribArray(position_attrib);
+            GLES20.glVertexAttribPointer(position_attrib, 4, GLES20.GL_FLOAT, false, 0, randomPointsBuffer);
+            GLES20.glDrawArrays(GLES20.GL_POINTS, 0, randomPointsBuffer.capacity() / 4);
+            GLES20.glDisableVertexAttribArray(position_attrib);
+        }
+
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
 
@@ -214,6 +258,15 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
             loadTexture(context.getResources().openRawResource(R.drawable.selected), textures[1]);
         }
 
+        { // particle shader
+            int vertex_shader_id = loadShader(GLES20.GL_VERTEX_SHADER, context.getResources().getString(R.string.particle_vertex_shader));
+            int fragment_shader_id = loadShader(GLES20.GL_FRAGMENT_SHADER, context.getResources().getString(R.string.particle_fragment_shader));
+            particle_program = GLES20.glCreateProgram();
+            GLES20.glAttachShader(particle_program, vertex_shader_id);
+            GLES20.glAttachShader(particle_program, fragment_shader_id);
+            GLES20.glLinkProgram(particle_program);
+        }
+
         { // main shader
             int vertex_shader_id = loadShader(GLES20.GL_VERTEX_SHADER, context.getResources().getString(R.string.tile_vertex_shader));
             int fragment_shader_id = loadShader(GLES20.GL_FRAGMENT_SHADER, context.getResources().getString(R.string.tile_fragment_shader));
@@ -234,6 +287,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         GLES20.glViewport(0, 0, width, height);
 
         setProjection(tile_program, true);
+        setProjection(particle_program, false);
     }
 
     public void setProjection(int program, boolean physical_referential) {
