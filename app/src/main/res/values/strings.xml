@@ -21,7 +21,8 @@
         uniform vec2 uTap;
         uniform sampler2D texture;
         void main() {
-            gl_FragColor = mat4(uColor, (1.-uColor)/2., (1.-uColor)/2., vec4(0,0,0,1))*texture2D(texture, (vCoord+uCard)/vec2(9.,3.));
+            vec4 base_sample = texture2D(texture, (vCoord+uCard)/vec2(9.,3.));
+            gl_FragColor = mat4(uColor, vec4(0,0,0,0), (1.-uColor), vec4(0,0,0,1))*base_sample;
         }
     </string>
 </resources>

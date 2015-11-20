@@ -33,7 +33,6 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
       -1,1,0,1,
     };
 
-    public int counter;
     private long startTime;
 
     private int tile_program;
@@ -45,7 +44,8 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
     private float sx;
     private float sy;
 
-    private int cards[];
+    private int cards_value[];
+    private boolean cards_selection[];
 
     public static FloatBuffer arrayToBuffer(float array[]) {
         ByteBuffer byte_buffer = ByteBuffer.allocateDirect(array.length * 4);
@@ -89,24 +89,37 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
 
     MainRenderer(Context context_) {
         Log.i("SetGame", "create renderer");
-        counter = 2;
         width = height = -1;
         sx = .5f;
         sy = 0;
         verticesBufferSquare = arrayToBuffer(verticesArraySquare);
         startTime = System.currentTimeMillis();
         context = context_;
-        cards = new int[9];
+
+        cards_value = new int[9];
         Random rng = new Random();
-        for (int ii=0; ii<cards.length; ii++)
-            cards[ii] = rng.nextInt() % 81;
-        cards[0] = 15;
-        cards[1] = 77;
+        for (int ii=0; ii<cards_value.length; ii++)
+            cards_value[ii] = rng.nextInt() % 81;
+        cards_value[0] = 15;
+        cards_value[1] = 77;
+
+        cards_selection = new boolean[9];
+        for (int ii=0; ii<cards_selection.length; ii++)
+            cards_selection[ii] = false;
     }
 
     @Override
     public boolean onSingleTapUp(MotionEvent evt) {
-        counter ++;
+        final float normal_size = Math.min(height, width);
+        final float tx = evt.getX()/normal_size;
+        final float ty = (height-evt.getY())/normal_size;
+        if (tx>=1) return false;
+        if (ty>=1) return false;
+        final int ii = (int)Math.floor(ty*3);
+        final int jj = (int)Math.floor(tx*3);
+        final int index = ii + 3*jj;
+        cards_selection[index] = !cards_selection[index];
+        Log.i("SetGame", "tap up " + ii + "/" + jj + " " + index);
         return true;
     }
 
@@ -151,33 +164,35 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
                 for (int jj= 0; jj<3; jj++)
                 {
                     Matrix.setIdentityM(model_view_matrix, 0);
-                    //Matrix.translateM(model_view_matrix, 0, -width/(float)Math.min(height, width),-height/(float)Math.min(height, width),0);
-                    Matrix.translateM(model_view_matrix, 0, -1,-1,0);
+                    Matrix.translateM(model_view_matrix, 0, -width/(float)Math.min(height, width),-height/(float)Math.min(height, width),0);
+                    //Matrix.translateM(model_view_matrix, 0, -1,-1,0);
                     Matrix.scaleM(model_view_matrix, 0, 1/3f,1/3f,1);
                     Matrix.translateM(model_view_matrix, 0, 2*ii, 2*jj, 0);
                     GLES20.glUniformMatrix4fv(model_view_uniform, 1, false, model_view_matrix, 0);
 
-                    int card = cards[index];
-                    final int color = card%3; card /= 3;
-                    final int filling = card%3; card/= 3;
-                    final int number = card%3; card /= 3;
-                    final int shape = card%3;
+                    int card_value = cards_value[index];
+                    final int color = card_value%3; card_value /= 3;
+                    final int filling = card_value%3; card_value/= 3;
+                    final int number = card_value%3; card_value /= 3;
+                    final int shape = card_value%3;
+
+                    final boolean card_selection = cards_selection[index];
 
                     switch (color)
                     {
                         case 0:
-                            GLES20.glUniform4f(color_uniform, 1,0,0,1);
+                            GLES20.glUniform4f(color_uniform, 1,1,0,1);
                             break;
                         case 1:
                             GLES20.glUniform4f(color_uniform, 0,1,0,1);
                             break;
                         default:
-                            GLES20.glUniform4f(color_uniform, 0,0,1,1);
+                            GLES20.glUniform4f(color_uniform, 0,1,1,1);
                             break;
                     }
 
                     GLES20.glUniform2f(card_uniform, shape+3*number, filling);
-                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[0]);
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[card_selection ? 1 : 0]);
                     GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, verticesBufferSquare.capacity() / 4);
 
                     index++;
