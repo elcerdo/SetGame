@@ -18,6 +18,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -49,6 +51,8 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
 
     private int cards_value[];
     private boolean cards_selection[];
+    private ArrayList<int[]> cards_solutions;
+    private int cards_solutions_total;
 
     public static FloatBuffer arrayToBuffer(float array[]) {
         ByteBuffer byte_buffer = ByteBuffer.allocateDirect(array.length * 4);
@@ -97,6 +101,47 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         return texture_id;
     }
 
+    public static String value_to_string(final int value)
+    {
+        String str = "";
+        switch ((value/1) % 3)
+        {
+            case 0: str += "red"; break;
+            case 1: str += "green"; break;
+            case 2: str += "blue"; break;
+        }
+        str += " ";
+        switch ((value/3) % 3)
+        {
+            case 0: str += "open"; break;
+            case 1: str += "dash"; break;
+            case 2: str += "full"; break;
+        }
+        str += " ";
+        switch ((value/9) % 3)
+        {
+            case 0: str += "x1"; break;
+            case 1: str += "x2"; break;
+            case 2: str += "x3"; break;
+        }
+        str += " ";
+        switch ((value/27) % 3)
+        {
+            case 0: str += "diamond"; break;
+            case 1: str += "square"; break;
+            case 2: str += "squiggle"; break;
+        }
+        return str;
+    }
+
+    public static String cards(final int cards[])
+    {
+        String foo[] = new String[cards.length];
+        for (int kk=0; kk<cards.length; kk++)
+            foo[kk] = value_to_string(cards[kk]);
+        return Arrays.toString(foo);
+    }
+
     public static void assertStatus() {
         int error = GLES20.glGetError();
         if (error == GLES20.GL_NO_ERROR) return;
@@ -115,16 +160,78 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         startTime = System.currentTimeMillis();
         context = context_;
 
+        cards_solutions = new ArrayList<int[]>();
         cards_value = new int[9];
-        Random rng = new Random();
-        for (int ii=0; ii<cards_value.length; ii++)
-            cards_value[ii] = rng.nextInt() % 81;
-        cards_value[0] = 15;
-        cards_value[1] = 77;
+        while (cards_solutions.size() < 4) drawCards();
+        cards_solutions_total = cards_solutions.size();
+
+        Log.i("SetGame", cards_solutions_total + " solutions");
+        for (int solution[] : cards_solutions)
+            Log.i("SetGame", "  " + cards(solution));
 
         cards_selection = new boolean[9];
         for (int ii=0; ii<cards_selection.length; ii++)
             cards_selection[ii] = false;
+    }
+
+    public void drawCards()
+    {
+        Random rng = new Random();
+        for (int ii=0; ii<cards_value.length; ii++)
+        {
+            int card_value = rng.nextInt(81);
+            for (int jj = 0; jj < ii; jj++)
+                if (cards_value[jj] == card_value) {
+                    jj = 0;
+                    card_value = rng.nextInt(81);
+                }
+            cards_value[ii] = card_value;
+        }
+
+        cards_solutions.clear();
+        for (int ii = 0; ii < cards_value.length - 2; ii++)
+            for (int jj = ii + 1; jj < cards_value.length - 1; jj++)
+                for (int kk = jj + 1; kk < cards_value.length; kk++) {
+                    int solution[] = new int[3];
+                    solution[0] = cards_value[ii];
+                    solution[1] = cards_value[jj];
+                    solution[2] = cards_value[kk];
+                    if (!checkSolution(solution)) continue;
+                    cards_solutions.add(solution);
+                }
+    }
+
+    public static boolean allEqual(int properties[])
+    {
+        if (properties.length<1) return false;
+        final int test_value = properties[0];
+        for (int kk=1; kk<properties.length; kk++)
+            if (test_value != properties[kk])
+                return false;
+        return true;
+    }
+
+    public static boolean allDifferent(int properties[])
+    {
+        if (properties.length<1) return false;
+        for (int kk=1; kk<properties.length; kk++)
+            for (int ll=0; ll<kk; ll++)
+                if (properties[ll] == properties[kk]) return false;
+        return true;
+    }
+
+    public static boolean checkSolution(int cards[])
+    {
+        if (cards.length != 3) return false;
+        int properties[] = new int[cards.length];
+        for (int base=1; base<81; base*=3) {
+            for (int kk = 0; kk < cards.length; kk++) {
+                if (cards[kk] >= 81 || cards[kk] < 0) return false;
+                properties[kk] = (cards[kk]/base) % 3;
+            }
+            if (!allDifferent(properties) && !allEqual(properties)) return false;
+        }
+        return true;
     }
 
     @Override
@@ -141,6 +248,22 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
 
         final int nn = countCardSelection();
         Log.i("SetGame", "tap up " + ii + "/" + jj + " " + index + " " + nn);
+
+        if (nn == 3)
+        {
+            int solution[] = new int[3];
+            {
+                int ll = 0;
+                for (int kk=0; kk<cards_value.length; kk++)
+                    if (cards_selection[kk])
+                        solution[ll++] = cards_value[kk];
+                if (ll != 3) throw new AssertionError();
+            }
+            Log.i("SetGame", cards(solution) + " " + checkSolution(solution));
+
+            for (int kk=0; kk<cards_selection.length; kk++)
+                cards_selection[kk] = false;
+        }
 
         return true;
     }
@@ -209,7 +332,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
             int slider_uniform = GLES20.glGetUniformLocation(slider_program, "uSlider");
 
             GLES20.glUniform1f(time_uniform, current_time);
-            GLES20.glUniform3f(slider_uniform, (float)countCardSelection(),9f,12f);
+            GLES20.glUniform3f(slider_uniform, (float)countCardSelection(),cards_solutions_total,12f);
 
             float model_view_matrix[] = new float[16];
             Matrix.setIdentityM(model_view_matrix, 0);
