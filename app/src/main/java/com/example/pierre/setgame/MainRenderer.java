@@ -234,6 +234,14 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         return true;
     }
 
+    public static boolean solution_match(int aa[], int bb[])
+    {
+        if (aa.length != bb.length) return false;
+        for (int kk=0; kk<aa.length; kk++)
+            if (aa[kk] != bb[kk]) return false;
+        return true;
+    }
+
     @Override
     public boolean onSingleTapUp(MotionEvent evt) {
         final float normal_size = Math.min(height, width);
@@ -259,7 +267,21 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
                         solution[ll++] = cards_value[kk];
                 if (ll != 3) throw new AssertionError();
             }
-            Log.i("SetGame", cards(solution) + " " + checkSolution(solution));
+
+            final boolean valid_solution = checkSolution(solution);
+            Log.i("SetGame", cards(solution) + " " + valid_solution);
+            if (valid_solution)
+            {
+                boolean new_solution = false;
+                for (int kk=0; kk<cards_solutions.size(); kk++)
+                {
+                    if (!solution_match(solution, cards_solutions.get(kk))) continue;
+                    new_solution = true;
+                    cards_solutions.remove(kk);
+                    break;
+                }
+                Log.i("SetGame", new_solution ? "new solution!!" : "already found solution");
+            }
 
             for (int kk=0; kk<cards_selection.length; kk++)
                 cards_selection[kk] = false;
@@ -332,7 +354,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
             int slider_uniform = GLES20.glGetUniformLocation(slider_program, "uSlider");
 
             GLES20.glUniform1f(time_uniform, current_time);
-            GLES20.glUniform3f(slider_uniform, (float)countCardSelection(),cards_solutions_total,12f);
+            GLES20.glUniform3f(slider_uniform, cards_solutions_total-cards_solutions.size(),cards_solutions_total,12f);
 
             float model_view_matrix[] = new float[16];
             Matrix.setIdentityM(model_view_matrix, 0);
