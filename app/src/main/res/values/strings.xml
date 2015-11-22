@@ -24,6 +24,37 @@
             gl_FragColor = mat4(uColor, vec4(0,0,0,0), (1.-uColor), vec4(0,0,0,1))*base_sample;
         }
     </string>
+    <string name="slider_vertex_shader">
+        precision highp float;
+        attribute vec4 aPosition;
+        uniform mat4 uProjection;
+        uniform mat4 uModelView;
+        uniform float uTime;
+        varying vec2 vCoord;
+        void main() {
+            vCoord = (aPosition.xy/aPosition.w + vec2(1.,1.))/2.;
+            gl_Position = uProjection*uModelView*aPosition;
+        }
+    </string>
+    <string name="slider_fragment_shader">
+        precision highp float;
+        uniform vec4 uColor;
+        uniform float uTime;
+        uniform vec3 uSlider;
+        varying vec2 vCoord;
+        uniform sampler2D texture;
+        void main() {
+            float current = ceil(vCoord.x*uSlider.z);
+            if (current > uSlider.y) discard;
+            vec2 sample_position = vec2(fract(vCoord.x*uSlider.z),vCoord.y);
+            gl_FragColor = texture2D(texture, sample_position);
+            if ((current &lt;= uSlider.x) &amp;&amp; (gl_FragColor.r > 0.)) {
+                float shift = .8*sample_position.x+.8*sample_position.y-2.*uTime+.9*current;
+                shift = fract(shift)*6.;
+                gl_FragColor.rgb = vec3(shift&lt;3.,shift>=2. &amp;&amp; shift&lt;5.,shift>=4. || shift&lt;1.);
+            }
+        }
+    </string>
     <string name="particle_vertex_shader">
         precision highp float;
         attribute vec4 aPosition;
@@ -46,7 +77,8 @@
         varying float vPhase;
         void main() {
             float theta = 2.*3.1416*vPhase*uTime;
-            gl_FragColor = vec4(.5*(1.+cos(theta)),.5*(1.+cos(theta+2.*3.1416/3.)),.5*(1.+cos(theta-4.*3.16/3.)),1);
+            gl_FragColor = vec4(.5*(1.+cos(theta)),.5*(1.+cos(theta+2.*3.1416/3.)),.5*(1.+cos(theta+4.*3.1416/3.)),1);
+            gl_FragColor.xyz *= .8;
         }
     </string>
 </resources>

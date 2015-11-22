@@ -38,6 +38,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
 
     private int tile_program;
     private int particle_program;
+    private int slider_program;
     private int textures[];
     private Context context;
 
@@ -137,8 +138,19 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         final int jj = (int)Math.floor(tx*3);
         final int index = ii + 3*jj;
         cards_selection[index] = !cards_selection[index];
-        Log.i("SetGame", "tap up " + ii + "/" + jj + " " + index);
+
+        final int nn = countCardSelection();
+        Log.i("SetGame", "tap up " + ii + "/" + jj + " " + index + " " + nn);
+
         return true;
+    }
+
+    public int countCardSelection()
+    {
+        int count = 0;
+        for (int kk=0; kk<cards_selection.length; kk++)
+            if (cards_selection[kk]) count++;
+        return count;
     }
 
     @Override
@@ -154,7 +166,9 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         final float current_time = (System.currentTimeMillis() - startTime) / 1000f;
         final float omega = 2f*(float)Math.PI*.3f;
 
-        GLES20.glClearColor((float)(1d+Math.cos(omega*current_time))/2f,(float)(1d+Math.cos(omega*current_time+2*Math.PI/3))/2f,(float)(1d+Math.cos(omega*current_time+4*Math.PI/3))/2f,1f);
+        //GLES20.glClearColor((float)(1d+Math.cos(omega*current_time))/2f,(float)(1d+Math.cos(omega*current_time+2*Math.PI/3))/2f,(float)(1d+Math.cos(omega*current_time+4*Math.PI/3))/2f,1f);
+        GLES20.glClearColor(1f, 1f, 1f, 1f);
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glLineWidth(10f);
         GLES20.glEnable(GLES20.GL_CULL_FACE);
@@ -177,7 +191,6 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
             Matrix.scaleM(model_view_matrix, 0, width,height,1);
             GLES20.glUniformMatrix4fv(model_view_uniform, 1, false, model_view_matrix, 0);
 
-
             GLES20.glEnableVertexAttribArray(position_attrib);
             GLES20.glVertexAttribPointer(position_attrib, 4, GLES20.GL_FLOAT, false, 0, randomPointsBuffer);
             GLES20.glDrawArrays(GLES20.GL_POINTS, 0, randomPointsBuffer.capacity() / 4);
@@ -186,6 +199,33 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
 
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+
+        {
+            GLES20.glUseProgram(slider_program);
+
+            int position_attrib = GLES20.glGetAttribLocation(slider_program, "aPosition");
+            int model_view_uniform = GLES20.glGetUniformLocation(slider_program, "uModelView");
+            int time_uniform = GLES20.glGetUniformLocation(slider_program, "uTime");
+            int slider_uniform = GLES20.glGetUniformLocation(slider_program, "uSlider");
+
+            GLES20.glUniform1f(time_uniform, current_time);
+            GLES20.glUniform3f(slider_uniform, (float)countCardSelection(),9f,12f);
+
+            float model_view_matrix[] = new float[16];
+            Matrix.setIdentityM(model_view_matrix, 0);
+            if (height > width) Matrix.translateM(model_view_matrix, 0, 10,height-10,0);
+            else Matrix.translateM(model_view_matrix, 0, height+10,height-10,0);
+            Matrix.scaleM(model_view_matrix, 0, 30*12,50,1);
+            Matrix.translateM(model_view_matrix, 0, 1f, -1f, 0f);
+            GLES20.glUniformMatrix4fv(model_view_uniform, 1, false, model_view_matrix, 0);
+
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textures[2]);
+
+            GLES20.glEnableVertexAttribArray(position_attrib);
+            GLES20.glVertexAttribPointer(position_attrib, 4, GLES20.GL_FLOAT, false, 0, verticesBufferSquare);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, verticesBufferSquare.capacity() / 4);
+            GLES20.glDisableVertexAttribArray(position_attrib);
+        }
 
         {
             GLES20.glUseProgram(tile_program);
@@ -225,13 +265,13 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
                     switch (color)
                     {
                         case 0:
-                            GLES20.glUniform4f(color_uniform, 1,1,0,1);
+                            GLES20.glUniform4f(color_uniform, 1,0,0,1);
                             break;
                         case 1:
                             GLES20.glUniform4f(color_uniform, 0,1,0,1);
                             break;
                         default:
-                            GLES20.glUniform4f(color_uniform, 0,1,1,1);
+                            GLES20.glUniform4f(color_uniform, 0,0,1,1);
                             break;
                     }
 
@@ -252,10 +292,21 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
         Log.i("SetGame", "create surface");
 
         { // texture
-            textures = new int[2];
+            textures = new int[3];
             GLES20.glGenTextures(textures.length, textures, 0);
             loadTexture(context.getResources().openRawResource(R.drawable.plain), textures[0]);
             loadTexture(context.getResources().openRawResource(R.drawable.selected), textures[1]);
+            loadTexture(context.getResources().openRawResource(R.drawable.slider), textures[2]);
+
+        }
+
+        { // slider shader
+            int vertex_shader_id = loadShader(GLES20.GL_VERTEX_SHADER, context.getResources().getString(R.string.slider_vertex_shader));
+            int fragment_shader_id = loadShader(GLES20.GL_FRAGMENT_SHADER, context.getResources().getString(R.string.slider_fragment_shader));
+            slider_program = GLES20.glCreateProgram();
+            GLES20.glAttachShader(slider_program, vertex_shader_id);
+            GLES20.glAttachShader(slider_program, fragment_shader_id);
+            GLES20.glLinkProgram(slider_program);
         }
 
         { // particle shader
@@ -288,6 +339,7 @@ public class MainRenderer extends GestureDetector.SimpleOnGestureListener implem
 
         setProjection(tile_program, true);
         setProjection(particle_program, false);
+        setProjection(slider_program, false);
     }
 
     public void setProjection(int program, boolean physical_referential) {
